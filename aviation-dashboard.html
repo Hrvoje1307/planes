@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AVTRACK // Flight Intelligence System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Exo+2:ital,wght@0,300;0,400;0,500;0,600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#040810;--bg2:#060d1a;--bg3:#0a1628;
+  --cyan:#00d4ff;--cyan-dim:rgba(0,212,255,.12);
+  --amber:#ffb800;--green:#00ff88;--red:#ff3355;
+  --text:#c8d8e8;--text-dim:#5a7490;
+  --border:rgba(0,212,255,.18);
+  --sw:220px;
+}
+
+html,body{height:100%}
+
+body{
+  font-family:'Exo 2',sans-serif;background-color:var(--bg);color:var(--text);
+  overflow:hidden;
+  background-image:
+    radial-gradient(circle at 60% 20%,rgba(0,212,255,.04) 0%,transparent 50%),
+    radial-gradient(rgba(0,212,255,.07) 1px,transparent 1px);
+  background-size:100% 100%,28px 28px;
+}
+
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9998;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.025) 2px,rgba(0,0,0,.025) 4px);
+}
+
+/* ── LOADING BAR ─────────────────────────────── */
+#lbar{position:fixed;top:0;left:0;height:2px;width:0%;z-index:10000;
+  background:linear-gradient(90deg,var(--cyan),var(--green));
+  box-shadow:0 0 8px var(--cyan);transition:width .3s,opacity .5s;}
+#lbar.go{width:72%}
+#lbar.done{width:100%;opacity:0}
+
+/* ── LAYOUT ──────────────────────────────────── */
+.layout{display:grid;grid-template-columns:var(--sw) 1fr;height:100vh}
+
+/* ── SIDEBAR ─────────────────────────────────── */
+.sidebar{
+  background:linear-gradient(180deg,#070e1c 0%,var(--bg) 100%);
+  border-right:1px solid var(--border);display:flex;flex-direction:column;
+  position:relative;z-index:100;overflow:hidden;
+}
+.sidebar::after{
+  content:'';position:absolute;right:0;top:0;bottom:0;width:1px;
+  background:linear-gradient(180deg,transparent,var(--cyan),transparent);opacity:.4;
+}
+
+.sb-logo{padding:20px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.sb-logo svg{flex-shrink:0;color:var(--cyan)}
+.logo-text{font-family:'Rajdhani',sans-serif;font-size:19px;font-weight:700;
+  color:var(--cyan);letter-spacing:3px;display:block}
+.logo-sub{font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--text-dim);
+  letter-spacing:2px;margin-top:1px;display:block}
+
+nav{padding:14px 0;flex:1}
+.nav-lbl{font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:3px;
+  color:var(--text-dim);padding:0 18px;margin-bottom:6px}
+.nav-item{
+  display:flex;align-items:center;gap:11px;padding:11px 18px;cursor:pointer;
+  transition:all .2s;border-left:3px solid transparent;
+}
+.nav-item:hover{background:rgba(0,212,255,.05);border-left-color:rgba(0,212,255,.35)}
+.nav-item.active{background:rgba(0,212,255,.08);border-left-color:var(--cyan)}
+.nav-item svg{width:17px;height:17px;color:var(--text-dim);flex-shrink:0;transition:color .2s}
+.nav-item:hover svg,.nav-item.active svg{color:var(--cyan)}
+.nav-item span{font-size:13px;font-weight:500;color:var(--text-dim);transition:color .2s;letter-spacing:.3px}
+.nav-item:hover span,.nav-item.active span{color:var(--text)}
+.nav-badge{
+  margin-left:auto;background:var(--cyan-dim);border:1px solid rgba(0,212,255,.3);
+  color:var(--cyan);font-family:'Share Tech Mono',monospace;font-size:10px;
+  padding:1px 6px;border-radius:2px;
+}
+
+.sb-footer{padding:14px 18px;border-top:1px solid var(--border)}
+.api-widget{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);line-height:1.8}
+.api-widget .big{font-size:17px;color:var(--cyan)}
+.api-bar{height:3px;background:rgba(255,255,255,.08);border-radius:2px;margin-top:5px;overflow:hidden}
+.api-bar-fill{height:100%;background:var(--green);border-radius:2px;transition:width .4s,background .4s}
+.reset-btn{
+  margin-top:8px;font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:1px;
+  color:var(--text-dim);background:none;border:1px solid rgba(255,255,255,.08);
+  padding:3px 8px;border-radius:2px;cursor:pointer;width:100%;transition:all .2s;
+}
+.reset-btn:hover{border-color:rgba(255,51,85,.5);color:var(--red)}
+
+/* ── MAIN ────────────────────────────────────── */
+.main{display:grid;grid-template-rows:auto 1fr;overflow:hidden}
+
+/* ── HEADER ──────────────────────────────────── */
+.hdr{
+  background:rgba(6,13,26,.95);border-bottom:1px solid var(--border);
+  padding:0 22px;height:54px;display:flex;align-items:center;gap:20px;
+  backdrop-filter:blur(8px);
+}
+.hdr-title{font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:700;
+  letter-spacing:4px;text-transform:uppercase;flex:1;color:var(--text)}
+.hdr-title em{color:var(--cyan);font-style:normal}
+.hdr-stat{display:flex;align-items:center;gap:7px;font-family:'Share Tech Mono',monospace;
+  font-size:10px;color:var(--text-dim)}
+.hdr-stat .val{color:var(--text);font-size:12px}
+.sdot{width:8px;height:8px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 6px var(--green);animation:pulse 2s infinite}
+.sdot.err{background:var(--red);box-shadow:0 0 6px var(--red);animation:none}
+.clock{font-family:'Share Tech Mono',monospace;font-size:14px;color:var(--cyan);letter-spacing:2px}
+
+/* ── CONTENT ─────────────────────────────────── */
+.content{overflow-y:auto;padding:22px}
+.content::-webkit-scrollbar{width:3px}
+.content::-webkit-scrollbar-thumb{background:rgba(0,212,255,.25);border-radius:2px}
+
+.section{display:none}.section.active{display:block}
+
+/* ── PAGE HEADER ─────────────────────────────── */
+.ph{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:22px}
+.pt{font-family:'Rajdhani',sans-serif;font-size:23px;font-weight:700;
+  letter-spacing:3px;text-transform:uppercase}
+.pt em{color:var(--cyan);font-style:normal}
+.ps{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-dim);
+  letter-spacing:2px;margin-top:3px}
+
+/* ── SEARCH BAR ──────────────────────────────── */
+.sbar{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;align-items:flex-end}
+.ig{display:flex;flex-direction:column;gap:4px;flex:1;min-width:140px}
+.ig label{font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:2px;
+  color:var(--text-dim);text-transform:uppercase}
+.inp{
+  background:rgba(0,212,255,.05);border:1px solid var(--border);color:var(--text);
+  padding:8px 11px;font-family:'Share Tech Mono',monospace;font-size:12px;letter-spacing:1px;
+  border-radius:4px;outline:none;transition:border-color .2s,box-shadow .2s;width:100%;
+}
+.inp:focus{border-color:var(--cyan);box-shadow:0 0 0 2px rgba(0,212,255,.08)}
+.inp::placeholder{color:var(--text-dim);opacity:.55}
+.sel{
+  background:rgba(0,212,255,.05);border:1px solid var(--border);color:var(--text);
+  padding:8px 11px;font-family:'Share Tech Mono',monospace;font-size:12px;
+  border-radius:4px;outline:none;cursor:pointer;width:100%;transition:border-color .2s;
+}
+.sel:focus{border-color:var(--cyan)}.sel option{background:#0a1628}
+
+/* ── BUTTONS ─────────────────────────────────── */
+.btn{
+  padding:8px 15px;border:none;cursor:pointer;font-family:'Rajdhani',sans-serif;
+  font-size:13px;font-weight:600;letter-spacing:2px;text-transform:uppercase;
+  border-radius:4px;transition:all .2s;display:inline-flex;align-items:center;gap:6px;
+  white-space:nowrap;
+}
+.btn-p{background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.45);color:var(--cyan)}
+.btn-p:hover{background:rgba(0,212,255,.2);border-color:var(--cyan);box-shadow:0 0 12px rgba(0,212,255,.25)}
+.btn-g{background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.4);color:var(--green)}
+.btn-g:hover{background:rgba(0,255,136,.18);box-shadow:0 0 12px rgba(0,255,136,.2)}
+.btn-d{background:rgba(255,51,85,.1);border:1px solid rgba(255,51,85,.4);color:var(--red)}
+.btn-d:hover{background:rgba(255,51,85,.2);box-shadow:0 0 12px rgba(255,51,85,.2)}
+.btn-w{background:rgba(255,184,0,.1);border:1px solid rgba(255,184,0,.4);color:var(--amber)}
+.btn-w:hover{background:rgba(255,184,0,.18);box-shadow:0 0 12px rgba(255,184,0,.2)}
+.btn-sm{padding:4px 10px;font-size:11px}
+.btn:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
+
+/* ── TABLE ───────────────────────────────────── */
+.tbl-wrap{border:1px solid var(--border);border-radius:6px;overflow:hidden;
+  background:rgba(6,13,26,.6)}
+.dtbl{width:100%;border-collapse:collapse;font-size:12px}
+.dtbl thead th{
+  background:rgba(0,212,255,.05);border-bottom:1px solid var(--border);
+  padding:9px 13px;text-align:left;font-family:'Share Tech Mono',monospace;
+  font-size:9px;letter-spacing:2px;color:var(--cyan);text-transform:uppercase;white-space:nowrap;
+}
+.dtbl tbody tr{border-bottom:1px solid rgba(0,212,255,.05);transition:background .15s;
+  animation:fup .3s ease both}
+.dtbl tbody tr:hover{background:rgba(0,212,255,.04)}
+.dtbl tbody td{padding:9px 13px;font-family:'Share Tech Mono',monospace;font-size:11px;
+  color:var(--text);vertical-align:middle}
+.fn{font-weight:600;color:var(--cyan);font-size:13px;letter-spacing:1px}
+.route{display:flex;align-items:center;gap:5px;font-size:11px}
+.ra{color:var(--text-dim)}
+
+/* ── BADGES ──────────────────────────────────── */
+.badge{
+  display:inline-block;padding:2px 7px;border-radius:2px;
+  font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:1px;
+  font-weight:600;text-transform:uppercase;white-space:nowrap;
+}
+.b-active{background:rgba(0,255,136,.15);border:1px solid rgba(0,255,136,.4);color:var(--green)}
+.b-sched{background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.3);color:var(--cyan)}
+.b-land{background:rgba(90,116,144,.2);border:1px solid rgba(90,116,144,.3);color:var(--text-dim)}
+.b-canc{background:rgba(255,51,85,.1);border:1px solid rgba(255,51,85,.3);color:var(--red)}
+.b-div{background:rgba(255,184,0,.1);border:1px solid rgba(255,184,0,.3);color:var(--amber)}
+.b-low{background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.3);color:var(--cyan)}
+.b-med{background:rgba(255,184,0,.1);border:1px solid rgba(255,184,0,.3);color:var(--amber)}
+.b-high{background:rgba(255,51,85,.1);border:1px solid rgba(255,51,85,.3);color:var(--red)}
+
+/* ── PAGINATION ──────────────────────────────── */
+.pgn{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 14px;border-top:1px solid var(--border);background:rgba(6,13,26,.4);
+}
+.pgn-info{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim)}
+.pgn-ctrl{display:flex;gap:6px}
+
+/* ── CARDS ───────────────────────────────────── */
+.cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:15px}
+.card{
+  background:rgba(6,13,26,.82);border:1px solid var(--border);border-radius:6px;
+  padding:15px;transition:all .2s;animation:fup .3s ease both;position:relative;overflow:hidden;
+}
+.card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--cyan),transparent);opacity:0;transition:opacity .2s;
+}
+.card:hover{border-color:rgba(0,212,255,.5);box-shadow:0 0 20px rgba(0,212,255,.08),inset 0 0 20px rgba(0,212,255,.02)}
+.card:hover::before{opacity:1}
+.card-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:11px}
+.card-title{font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700;
+  color:var(--cyan);letter-spacing:2px}
+.card-sub{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);
+  margin-top:2px;letter-spacing:1px}
+.card-body{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.cf{display:flex;flex-direction:column;gap:1px}
+.cf-lbl{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-dim);
+  letter-spacing:2px;text-transform:uppercase}
+.cf-val{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text)}
+.card-acts{display:flex;gap:6px;margin-top:13px;flex-wrap:wrap}
+
+/* Watchlist card priority bar */
+.wcard .pbar{position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:6px 0 0 6px}
+.pbar.ph{background:var(--red);box-shadow:0 0 8px var(--red)}
+.pbar.pm{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.pbar.pl{background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
+
+/* ── PINNED / FOLLOWED ROWS ──────────────────── */
+.pin-section{margin-bottom:22px}
+.pin-lbl{
+  font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:3px;
+  color:var(--amber);text-transform:uppercase;margin-bottom:10px;
+  display:flex;align-items:center;gap:8px;
+}
+.pin-lbl.cyan{color:var(--cyan)}
+.pin-lbl::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(255,184,0,.3),transparent)}
+.pin-lbl.cyan::after{background:linear-gradient(90deg,rgba(0,212,255,.3),transparent)}
+.pin-row{display:flex;gap:10px;flex-wrap:wrap}
+.chip{
+  background:rgba(255,184,0,.07);border:1px solid rgba(255,184,0,.25);border-radius:4px;
+  padding:5px 11px;display:flex;align-items:center;gap:8px;
+  font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--amber);transition:all .2s;
+}
+.chip.cyan{background:rgba(0,212,255,.07);border-color:rgba(0,212,255,.25);color:var(--cyan)}
+.chip:hover{box-shadow:0 0 10px rgba(255,184,0,.15)}
+.chip.cyan:hover{box-shadow:0 0 10px rgba(0,212,255,.15)}
+.chip-name{font-size:9px;color:var(--text-dim)}
+.chip-rm{color:var(--text-dim);font-size:14px;line-height:1;cursor:pointer;transition:color .2s;padding:0 2px}
+.chip-rm:hover{color:var(--red)}
+
+/* ── EMPTY STATE ─────────────────────────────── */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:55px 24px;text-align:center;color:var(--text-dim)}
+.empty svg{width:44px;height:44px;margin-bottom:14px;opacity:.3;color:var(--cyan)}
+.empty h3{font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:600;
+  letter-spacing:2px;color:var(--text-dim);margin-bottom:7px}
+.empty p{font-size:11px;max-width:260px;line-height:1.7;font-family:'Share Tech Mono',monospace}
+
+/* ── LOADING SPINNER ─────────────────────────── */
+.loading{display:flex;align-items:center;justify-content:center;padding:40px;
+  gap:14px;color:var(--cyan);font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px}
+.loading svg{animation:rspin 2s linear infinite;width:22px;height:22px}
+
+/* ── MODAL ───────────────────────────────────── */
+.overlay{
+  display:none;position:fixed;inset:0;background:rgba(4,8,16,.88);
+  backdrop-filter:blur(7px);z-index:1000;align-items:center;justify-content:center;
+}
+.overlay.open{display:flex}
+.modal{
+  background:linear-gradient(135deg,#060d1a,#0a1628);border:1px solid var(--border);
+  border-radius:8px;padding:26px;width:100%;max-width:410px;
+  box-shadow:0 0 40px rgba(0,212,255,.12);animation:min .2s ease;
+}
+@keyframes min{from{transform:scale(.95) translateY(-10px);opacity:0}to{transform:scale(1) translateY(0);opacity:1}}
+.modal-hdr{display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:22px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+.modal-title{font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700;
+  letter-spacing:3px;text-transform:uppercase;color:var(--cyan)}
+.modal-x{background:none;border:none;color:var(--text-dim);cursor:pointer;
+  font-size:19px;line-height:1;transition:color .2s;padding:2px}
+.modal-x:hover{color:var(--red)}
+.fg{margin-bottom:14px}
+.fg label{display:block;font-family:'Share Tech Mono',monospace;font-size:9px;
+  letter-spacing:2px;color:var(--text-dim);text-transform:uppercase;margin-bottom:5px}
+.modal-ft{display:flex;gap:9px;justify-content:flex-end;margin-top:22px;
+  padding-top:14px;border-top:1px solid var(--border)}
+
+/* ── TOASTS ──────────────────────────────────── */
+#toasts{position:fixed;bottom:22px;right:22px;z-index:9999;
+  display:flex;flex-direction:column;gap:7px;pointer-events:none}
+.toast{
+  padding:11px 15px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:11px;
+  min-width:250px;max-width:350px;display:flex;align-items:center;gap:9px;
+  animation:tin .3s ease both;pointer-events:all;border:1px solid;
+}
+.toast.out{animation:tout .3s ease both}
+.toast-s{background:rgba(0,255,136,.1);border-color:rgba(0,255,136,.4);color:var(--green)}
+.toast-e{background:rgba(255,51,85,.1);border-color:rgba(255,51,85,.4);color:var(--red)}
+.toast-w{background:rgba(255,184,0,.1);border-color:rgba(255,184,0,.4);color:var(--amber)}
+
+/* ── RESULTS HEADER ──────────────────────────── */
+.rh{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px}
+.rc{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);letter-spacing:2px}
+.rc em{color:var(--cyan);font-style:normal}
+
+/* ── HTTP WARNING ────────────────────────────── */
+.http-warn{
+  background:rgba(255,184,0,.07);border:1px solid rgba(255,184,0,.25);
+  border-radius:4px;padding:8px 13px;margin-bottom:16px;
+  font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--amber);
+  display:flex;align-items:center;gap:8px;letter-spacing:.5px;
+}
+
+/* ── DIVIDER ─────────────────────────────────── */
+hr.divider{border:none;border-top:1px solid var(--border);margin:20px 0}
+
+/* ── ANIMATIONS ──────────────────────────────── */
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+@keyframes rspin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes fup{from{opacity:0;transform:translateY(11px)}to{opacity:1;transform:translateY(0)}}
+@keyframes tin{from{transform:translateX(18px);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes tout{from{transform:translateX(0);opacity:1}to{transform:translateX(18px);opacity:0}}
+
+/* stagger */
+.dtbl tbody tr:nth-child(1){animation-delay:0ms}.dtbl tbody tr:nth-child(2){animation-delay:35ms}
+.dtbl tbody tr:nth-child(3){animation-delay:70ms}.dtbl tbody tr:nth-child(4){animation-delay:105ms}
+.dtbl tbody tr:nth-child(5){animation-delay:140ms}.dtbl tbody tr:nth-child(6){animation-delay:175ms}
+.dtbl tbody tr:nth-child(7){animation-delay:210ms}.dtbl tbody tr:nth-child(8){animation-delay:245ms}
+.dtbl tbody tr:nth-child(9){animation-delay:280ms}.dtbl tbody tr:nth-child(10){animation-delay:315ms}
+.card:nth-child(1){animation-delay:0ms}.card:nth-child(2){animation-delay:50ms}
+.card:nth-child(3){animation-delay:100ms}.card:nth-child(4){animation-delay:150ms}
+.card:nth-child(5){animation-delay:200ms}.card:nth-child(6){animation-delay:250ms}
+</style>
+</head>
+<body>
+
+<div id="lbar"></div>
+
+<div class="layout">
+
+<!-- ════════════════════ SIDEBAR ════════════════════ -->
+<aside class="sidebar">
+  <div class="sb-logo">
+    <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+      <circle cx="15" cy="15" r="13" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3" opacity=".4"/>
+      <circle cx="15" cy="15" r="8" stroke="currentColor" stroke-width="1" opacity=".6"/>
+      <circle cx="15" cy="15" r="3" stroke="currentColor" stroke-width="1"/>
+      <circle cx="15" cy="15" r="1.5" fill="currentColor"/>
+      <line x1="15" y1="15" x2="23" y2="7" stroke="currentColor" stroke-width="1.5" opacity=".85"/>
+    </svg>
+    <div>
+      <span class="logo-text">AVTRACK</span>
+      <span class="logo-sub">FLIGHT INTELLIGENCE SYSTEM</span>
+    </div>
+  </div>
+
+  <nav>
+    <div class="nav-lbl">MODULES</div>
+    <div class="nav-item active" id="nav-flights" onclick="nav('flights')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+      </svg>
+      <span>Live Flights</span>
+    </div>
+    <div class="nav-item" id="nav-watchlist" onclick="nav('watchlist');renderWatchlist()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+      </svg>
+      <span>My Watchlist</span>
+      <span class="nav-badge" id="wl-badge" style="display:none">0</span>
+    </div>
+    <div class="nav-item" id="nav-airports" onclick="nav('airports');renderPinned()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/>
+      </svg>
+      <span>Airports</span>
+    </div>
+    <div class="nav-item" id="nav-airlines" onclick="nav('airlines');renderFollowed()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M17.8 19.2L16 11l3.5-3.5C21 6 21 4 19 2c-2-2-4-2-5.5-.5L10 5 1.8 6.2C1.3 6.3 1 6.7 1 7.2L3 10H6l1 3H4l2 2 1 3 3-1V14l3-1 3 5.8c.1.5.5.8 1 .7l3.5-.8c.5-.1.7-.7.3-1.1z"/>
+      </svg>
+      <span>Airlines</span>
+    </div>
+  </nav>
+
+  <div class="sb-footer">
+    <div class="api-widget">
+      <span class="big" id="api-count">0</span>/100 API CALLS
+      <div class="api-bar"><div class="api-bar-fill" id="api-fill" style="width:0%"></div></div>
+    </div>
+    <button class="reset-btn" onclick="resetCounter()">↺ RESET COUNTER</button>
+  </div>
+</aside>
+
+<!-- ════════════════════ MAIN ════════════════════ -->
+<main class="main">
+
+  <!-- HEADER -->
+  <header class="hdr">
+    <div class="hdr-title"><em id="hdr-sec">LIVE FLIGHTS</em></div>
+    <div class="hdr-stat">
+      <div class="sdot" id="api-dot"></div>
+      <span>API</span><span class="val" id="api-txt">ONLINE</span>
+    </div>
+    <div class="hdr-stat">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+      <span>FLIGHTS</span><span class="val" id="hdr-count">—</span>
+    </div>
+    <div class="clock" id="clock">00:00:00 UTC</div>
+  </header>
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <!-- ─── LIVE FLIGHTS ─────────────────────── -->
+    <section class="section active" id="section-flights">
+      <div class="ph">
+        <div>
+          <div class="pt">LIVE <em>FLIGHTS</em></div>
+          <div class="ps">// REAL-TIME AIRSPACE INTELLIGENCE</div>
+        </div>
+      </div>
+
+      <div class="http-warn">
+        ⚠ Aviationstack free tier uses HTTP. Open this file locally (file://) for best results.
+      </div>
+
+      <div class="sbar">
+        <div class="ig" style="max-width:160px">
+          <label>Flight IATA</label>
+          <input class="inp" id="f-iata" placeholder="AA123" maxlength="8">
+        </div>
+        <div class="ig" style="max-width:130px">
+          <label>Departure</label>
+          <input class="inp" id="f-dep" placeholder="JFK" maxlength="4">
+        </div>
+        <div class="ig" style="max-width:130px">
+          <label>Arrival</label>
+          <input class="inp" id="f-arr" placeholder="LAX" maxlength="4">
+        </div>
+        <div class="ig" style="max-width:110px;flex:0">
+          <label>&nbsp;</label>
+          <button class="btn btn-p" onclick="searchFlights()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            SCAN
+          </button>
+        </div>
+      </div>
+
+      <div id="f-results" style="display:none">
+        <div class="tbl-wrap">
+          <table class="dtbl">
+            <thead>
+              <tr>
+                <th>FLIGHT №</th><th>AIRLINE</th><th>FROM → TO</th>
+                <th>STATUS</th><th>DEP</th><th>ARR</th><th>AIRCRAFT</th><th>ACTION</th>
+              </tr>
+            </thead>
+            <tbody id="f-tbody"></tbody>
+          </table>
+          <div class="pgn">
+            <span class="pgn-info" id="pgn-info">—</span>
+            <div class="pgn-ctrl">
+              <button class="btn btn-sm btn-p" id="btn-prev" onclick="fPrev()" disabled>← PREV</button>
+              <button class="btn btn-sm btn-p" id="btn-next" onclick="fNext()" disabled>NEXT →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="f-init">
+        <div class="empty" style="margin-top:50px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+               style="width:60px;height:60px;opacity:.2;animation:rspin 10s linear infinite">
+            <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/>
+            <circle cx="12" cy="12" r="2"/><line x1="12" y1="12" x2="19" y2="5"/>
+          </svg>
+          <h3>AWAITING SEARCH INPUT</h3>
+          <p>Enter a flight number, departure or arrival airport IATA code and press SCAN</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── WATCHLIST ────────────────────────── -->
+    <section class="section" id="section-watchlist">
+      <div class="ph">
+        <div>
+          <div class="pt">MY <em>WATCHLIST</em></div>
+          <div class="ps">// TRACKED FLIGHT REGISTRY</div>
+        </div>
+        <button class="btn btn-g" onclick="openAddModal()">+ ADD FLIGHT</button>
+      </div>
+      <div class="cgrid" id="wl-cards"></div>
+    </section>
+
+    <!-- ─── AIRPORTS ─────────────────────────── -->
+    <section class="section" id="section-airports">
+      <div class="ph">
+        <div>
+          <div class="pt">AIRPORT <em>DATABASE</em></div>
+          <div class="ps">// GLOBAL AERODROME REGISTRY</div>
+        </div>
+      </div>
+
+      <div class="sbar">
+        <div class="ig" style="max-width:380px">
+          <label>Search Airports</label>
+          <input class="inp" id="a-search" placeholder="London Heathrow or LHR...">
+        </div>
+        <div class="ig" style="max-width:100px;flex:0">
+          <label>&nbsp;</label>
+          <button class="btn btn-p" onclick="searchAirports()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            FIND
+          </button>
+        </div>
+      </div>
+
+      <div id="pinned-sec" style="display:none" class="pin-section">
+        <div class="pin-lbl">📍 PINNED AIRPORTS</div>
+        <div class="pin-row" id="pinned-row"></div>
+        <hr class="divider">
+      </div>
+
+      <div id="a-count-row" style="display:none" class="rh">
+        <span class="rc">SHOWING <em id="a-count">0</em> AIRPORTS</span>
+      </div>
+      <div class="cgrid" id="a-cards"></div>
+    </section>
+
+    <!-- ─── AIRLINES ─────────────────────────── -->
+    <section class="section" id="section-airlines">
+      <div class="ph">
+        <div>
+          <div class="pt">AIRLINE <em>REGISTRY</em></div>
+          <div class="ps">// GLOBAL CARRIER DATABASE</div>
+        </div>
+      </div>
+
+      <div class="sbar">
+        <div class="ig" style="max-width:380px">
+          <label>Search Airlines</label>
+          <input class="inp" id="al-search" placeholder="Delta or DL...">
+        </div>
+        <div class="ig" style="max-width:100px;flex:0">
+          <label>&nbsp;</label>
+          <button class="btn btn-p" onclick="searchAirlines()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            FIND
+          </button>
+        </div>
+      </div>
+
+      <div id="followed-sec" style="display:none" class="pin-section">
+        <div class="pin-lbl cyan">★ FOLLOWED AIRLINES</div>
+        <div class="pin-row" id="followed-row"></div>
+        <hr class="divider">
+      </div>
+
+      <div id="al-count-row" style="display:none" class="rh">
+        <span class="rc">SHOWING <em id="al-count">0</em> AIRLINES</span>
+      </div>
+      <div class="cgrid" id="al-cards"></div>
+    </section>
+
+  </div><!-- /content -->
+</main>
+</div><!-- /layout -->
+
+<!-- ════════════════════ MODALS ════════════════════ -->
+
+<!-- Add to Watchlist -->
+<div class="overlay" id="modal-add">
+  <div class="modal">
+    <div class="modal-hdr">
+      <span class="modal-title">ADD TO WATCHLIST</span>
+      <button class="modal-x" onclick="closeAddModal()">✕</button>
+    </div>
+    <div class="fg">
+      <label>Flight IATA Code *</label>
+      <input class="inp" id="wl-iata" placeholder="e.g. AA123" style="width:100%">
+    </div>
+    <div class="fg">
+      <label>Label / Note</label>
+      <input class="inp" id="wl-label" placeholder="e.g. Business trip to NYC" style="width:100%">
+    </div>
+    <div class="fg">
+      <label>Priority</label>
+      <select class="sel" id="wl-priority" style="width:100%">
+        <option value="low">LOW</option>
+        <option value="medium" selected>MEDIUM</option>
+        <option value="high">HIGH</option>
+      </select>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-d" onclick="closeAddModal()">CANCEL</button>
+      <button class="btn btn-g" onclick="saveWatchlistItem()">+ ADD FLIGHT</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Watchlist -->
+<div class="overlay" id="modal-edit">
+  <div class="modal">
+    <div class="modal-hdr">
+      <span class="modal-title">EDIT ENTRY</span>
+      <button class="modal-x" onclick="closeEditModal()">✕</button>
+    </div>
+    <div class="fg">
+      <label>Label / Note</label>
+      <input class="inp" id="edit-label" placeholder="Update label..." style="width:100%">
+    </div>
+    <div class="fg">
+      <label>Priority</label>
+      <select class="sel" id="edit-priority" style="width:100%">
+        <option value="low">LOW</option>
+        <option value="medium">MEDIUM</option>
+        <option value="high">HIGH</option>
+      </select>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-d" onclick="closeEditModal()">CANCEL</button>
+      <button class="btn btn-p" onclick="saveEdit()">SAVE CHANGES</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toasts"></div>
+
+<!-- ════════════════════ SCRIPT ════════════════════ -->
+<script>
+'use strict';
+
+// ── CONFIG ─────────────────────────────────────────
+const CFG = {
+  apiKey: 'dc84b45ccb58825aa090061f9b6dd9ad',
+  base: 'http://api.aviationstack.com/v1',
+  limit: 10,
+  maxCalls: 100,
+  warnAt: 80
+};
+
+// ── STORAGE ─────────────────────────────────────────
+const S = {
+  g: (k,d=null)=>{ try{ const v=localStorage.getItem(k); return v!==null?JSON.parse(v):d; }catch{ return d; } },
+  s: (k,v)=>localStorage.setItem(k,JSON.stringify(v)),
+
+  // Watchlist
+  wl(){ return this.g('wl',[]); },
+  saveWl(l){ this.s('wl',l); },
+  addWl(item){
+    const l=this.wl();
+    if(l.find(i=>i.iata===item.iata)) return false;
+    l.unshift({...item, id:Date.now(), addedAt:new Date().toISOString(), lastChecked:null, liveStatus:null});
+    this.saveWl(l); return true;
+  },
+  updWl(id,u){ const l=this.wl(); const i=l.findIndex(x=>x.id===id); if(i<0) return; l[i]={...l[i],...u}; this.saveWl(l); },
+  delWl(id){ this.saveWl(this.wl().filter(i=>i.id!==id)); },
+
+  // Airports
+  pins(){ return this.g('pins',[]); },
+  pin(a){ const l=this.pins(); if(l.find(x=>x.iata_code===a.iata_code)) return false; l.unshift(a); this.s('pins',l); return true; },
+  unpin(c){ this.s('pins',this.pins().filter(a=>a.iata_code!==c)); },
+  isPinned(c){ return !!this.pins().find(a=>a.iata_code===c); },
+
+  // Airlines
+  follows(){ return this.g('follows',[]); },
+  follow(a){ const l=this.follows(); if(l.find(x=>x.iata_code===a.iata_code)) return false; l.unshift(a); this.s('follows',l); return true; },
+  unfollow(c){ this.s('follows',this.follows().filter(a=>a.iata_code!==c)); },
+  isFollowed(c){ return !!this.follows().find(a=>a.iata_code===c); },
+
+  // Counter
+  calls(){ return this.g('calls',0); },
+  inc(){ const n=this.calls()+1; this.s('calls',n); return n; },
+  reset(){ this.s('calls',0); }
+};
+
+// ── LOADING BAR ─────────────────────────────────────
+let lTimer=null;
+function lbStart(){ const b=document.getElementById('lbar'); b.style.opacity='1'; b.className='go'; clearTimeout(lTimer); }
+function lbEnd(){ const b=document.getElementById('lbar'); b.className='done'; lTimer=setTimeout(()=>{ b.style.width='0%'; b.style.opacity='0'; b.className=''; },600); }
+
+// ── API CALL ─────────────────────────────────────────
+async function apiCall(ep, params={}){
+  const n=S.calls();
+  if(n>=CFG.maxCalls){ toast('API call limit reached (100/month). Reset the counter to continue.','e'); return null; }
+  lbStart();
+  const url=new URL(`${CFG.base}/${ep}`);
+  url.searchParams.set('access_key',CFG.apiKey);
+  Object.entries(params).forEach(([k,v])=>{ if(v!==undefined&&v!==''&&v!==null) url.searchParams.set(k,v); });
+  try{
+    const r=await fetch(url.toString());
+    if(!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d=await r.json();
+    if(d.error){ throw new Error(d.error.info||d.error.message||'API error'); }
+    const newN=S.inc(); updCounter(newN);
+    if(newN===CFG.warnAt) toast(`⚠ ${newN}/${CFG.maxCalls} API calls used this month`,'w');
+    setApiStatus(true);
+    return d;
+  }catch(e){
+    toast(`API Error: ${e.message}`,'e');
+    setApiStatus(false);
+    return null;
+  }finally{ lbEnd(); }
+}
+
+// ── UI UTILS ─────────────────────────────────────────
+function toast(msg,type='s'){
+  const c=document.getElementById('toasts');
+  const t=document.createElement('div');
+  const ico={s:'✓',e:'✕',w:'⚠'};
+  t.className=`toast toast-${type}`;
+  t.innerHTML=`<span>${ico[type]||'•'}</span><span>${msg}</span>`;
+  c.appendChild(t);
+  setTimeout(()=>{ t.classList.add('out'); setTimeout(()=>t.remove(),300); },3000);
+}
+
+function setApiStatus(ok){
+  document.getElementById('api-dot').className='sdot'+(ok?'':' err');
+  document.getElementById('api-txt').textContent=ok?'ONLINE':'ERROR';
+}
+
+function updCounter(n){
+  document.getElementById('api-count').textContent=n;
+  const pct=Math.min((n/CFG.maxCalls)*100,100);
+  const f=document.getElementById('api-fill');
+  f.style.width=pct+'%';
+  f.style.background=n>=CFG.maxCalls?'var(--red)':n>=CFG.warnAt?'var(--amber)':'var(--green)';
+}
+
+function resetCounter(){ S.reset(); updCounter(0); toast('API counter reset','s'); }
+
+function nav(sec){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('section-'+sec).classList.add('active');
+  document.getElementById('nav-'+sec).classList.add('active');
+  const titles={flights:'LIVE FLIGHTS',watchlist:'MY WATCHLIST',airports:'AIRPORTS',airlines:'AIRLINES'};
+  document.getElementById('hdr-sec').textContent=titles[sec]||'';
+}
+
+function startClock(){
+  const tick=()=>{ const n=new Date(); document.getElementById('clock').textContent=n.toUTCString().slice(17,25)+' UTC'; };
+  tick(); setInterval(tick,1000);
+}
+
+function fmtTime(t){ if(!t) return '—'; try{ return new Date(t).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}); }catch{ return '—'; } }
+function fmtDate(t){ if(!t) return '—'; try{ return new Date(t).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }catch{ return '—'; } }
+
+function statusBadge(s){
+  if(!s) return '<span class="badge b-sched">UNKNOWN</span>';
+  const m={active:'b-active','en-route':'b-active',scheduled:'b-sched',landed:'b-land',cancelled:'b-canc',diverted:'b-div',incident:'b-div'};
+  return `<span class="badge ${m[s.toLowerCase()]||'b-sched'}">${s.toUpperCase()}</span>`;
+}
+
+// ── LIVE FLIGHTS ─────────────────────────────────────
+const FS={offset:0,total:0,params:{},data:[]};
+
+async function searchFlights(){
+  const iata=document.getElementById('f-iata').value.trim().toUpperCase();
+  const dep=document.getElementById('f-dep').value.trim().toUpperCase();
+  const arr=document.getElementById('f-arr').value.trim().toUpperCase();
+  if(!iata&&!dep&&!arr){ toast('Enter at least one search parameter','w'); return; }
+  FS.offset=0;
+  FS.params={};
+  if(iata) FS.params.flight_iata=iata;
+  if(dep) FS.params.dep_iata=dep;
+  if(arr) FS.params.arr_iata=arr;
+  await loadFlights();
+}
+
+async function loadFlights(){
+  document.getElementById('f-init').style.display='none';
+  document.getElementById('f-results').style.display='block';
+  const tbody=document.getElementById('f-tbody');
+  tbody.innerHTML=`<tr><td colspan="8"><div class="loading"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2v10l6 4"/></svg>SCANNING AIRSPACE...</div></td></tr>`;
+  const d=await apiCall('flights',{...FS.params,limit:CFG.limit,offset:FS.offset});
+  if(!d){ tbody.innerHTML=`<tr><td colspan="8"><div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><h3>REQUEST FAILED</h3><p>Check your connection or API limits</p></div></td></tr>`; return; }
+  FS.total=d.pagination?.total||d.data?.length||0;
+  FS.data=d.data||[];
+  document.getElementById('hdr-count').textContent=FS.total.toLocaleString();
+  renderFlightsTable(FS.data);
+  renderPgn();
+}
+
+function renderFlightsTable(flights){
+  const tbody=document.getElementById('f-tbody');
+  if(!flights.length){
+    tbody.innerHTML=`<tr><td colspan="8"><div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg><h3>NO FLIGHTS FOUND</h3><p>Try different search parameters</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML=flights.map(f=>{
+    const num=f.flight?.iata||f.flight?.icao||'—';
+    const airline=f.airline?.name||'—';
+    const dep=f.departure?.iata||'—';
+    const arr=f.arrival?.iata||'—';
+    const depTime=fmtTime(f.departure?.scheduled);
+    const arrTime=fmtTime(f.arrival?.scheduled);
+    const ac=f.aircraft?.iata||f.aircraft?.icao||'—';
+    return `<tr>
+      <td><span class="fn">${num}</span></td>
+      <td>${airline}</td>
+      <td><div class="route"><span>${dep}</span><span class="ra">→</span><span>${arr}</span></div></td>
+      <td>${statusBadge(f.flight_status)}</td>
+      <td>${depTime}</td><td>${arrTime}</td><td>${ac}</td>
+      <td><button class="btn btn-sm btn-g" onclick="openAddModal('${num}','${airline}','${dep}','${arr}')">+ WATCH</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderPgn(){
+  const s=FS.offset+1, e=Math.min(FS.offset+CFG.limit,FS.total);
+  document.getElementById('pgn-info').textContent=`SHOWING ${s}–${e} OF ${FS.total}`;
+  document.getElementById('btn-prev').disabled=FS.offset===0;
+  document.getElementById('btn-next').disabled=FS.offset+CFG.limit>=FS.total;
+}
+
+async function fPrev(){ if(FS.offset===0) return; FS.offset=Math.max(0,FS.offset-CFG.limit); await loadFlights(); }
+async function fNext(){ if(FS.offset+CFG.limit>=FS.total) return; FS.offset+=CFG.limit; await loadFlights(); }
+
+// ── WATCHLIST ────────────────────────────────────────
+let editId=null, delConfirmId=null;
+
+function openAddModal(iata='',airline='',dep='',arr=''){
+  document.getElementById('wl-iata').value=iata;
+  document.getElementById('wl-label').value=iata?`${dep}→${arr} (${airline})`:'';
+  document.getElementById('wl-priority').value='medium';
+  document.getElementById('modal-add').classList.add('open');
+}
+function closeAddModal(){ document.getElementById('modal-add').classList.remove('open'); }
+
+function saveWatchlistItem(){
+  const iata=document.getElementById('wl-iata').value.trim().toUpperCase();
+  const label=document.getElementById('wl-label').value.trim();
+  const priority=document.getElementById('wl-priority').value;
+  if(!iata){ toast('Flight IATA code required','e'); return; }
+  if(S.addWl({iata,label,priority})){ toast(`${iata} added to watchlist`,'s'); updWlBadge(); if(document.getElementById('section-watchlist').classList.contains('active')) renderWatchlist(); }
+  else{ toast(`${iata} is already in watchlist`,'w'); }
+  closeAddModal();
+}
+
+function updWlBadge(){
+  const n=S.wl().length, b=document.getElementById('wl-badge');
+  b.textContent=n; b.style.display=n?'inline':'none';
+}
+
+function renderWatchlist(){
+  const c=document.getElementById('wl-cards'); updWlBadge();
+  const list=S.wl();
+  if(!list.length){
+    c.innerHTML=`<div class="empty" style="grid-column:1/-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg><h3>WATCHLIST EMPTY</h3><p>Add flights from Live Flights or use the + ADD button</p></div>`;
+    return;
+  }
+  c.innerHTML=list.map(item=>`
+    <div class="card wcard" id="wc-${item.id}">
+      <div class="pbar p${item.priority[0]}"></div>
+      <div class="card-hdr">
+        <div>
+          <div class="card-title">${item.iata}</div>
+          <div class="card-sub">${item.label||'No label'}</div>
+        </div>
+        <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+          <span class="badge b-${item.priority[0]==='l'?'low':item.priority[0]==='m'?'med':'high'}">${item.priority.toUpperCase()}</span>
+          ${item.liveStatus?statusBadge(item.liveStatus):''}
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="cf"><span class="cf-lbl">ADDED</span><span class="cf-val">${fmtDate(item.addedAt)}</span></div>
+        <div class="cf"><span class="cf-lbl">LAST CHECK</span><span class="cf-val">${item.lastChecked?fmtTime(item.lastChecked):'Never'}</span></div>
+      </div>
+      <div class="card-acts">
+        <button class="btn btn-sm btn-p" onclick="refreshWl(${item.id})">↻ REFRESH</button>
+        <button class="btn btn-sm btn-w" onclick="openEditModal(${item.id})">✎ EDIT</button>
+        <button class="btn btn-sm btn-d" id="del-${item.id}" onclick="confirmDel(${item.id})">✕ REMOVE</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function refreshWl(id){
+  const item=S.wl().find(i=>i.id===id); if(!item) return;
+  const d=await apiCall('flights',{flight_iata:item.iata,limit:1});
+  if(!d) return;
+  const status=d.data?.[0]?.flight_status||'unknown';
+  S.updWl(id,{liveStatus:status,lastChecked:new Date().toISOString()});
+  renderWatchlist();
+  toast(`${item.iata}: ${status.toUpperCase()}`,'s');
+}
+
+function openEditModal(id){
+  const item=S.wl().find(i=>i.id===id); if(!item) return;
+  editId=id;
+  document.getElementById('edit-label').value=item.label||'';
+  document.getElementById('edit-priority').value=item.priority||'medium';
+  document.getElementById('modal-edit').classList.add('open');
+}
+function closeEditModal(){ document.getElementById('modal-edit').classList.remove('open'); editId=null; }
+function saveEdit(){
+  if(!editId) return;
+  S.updWl(editId,{label:document.getElementById('edit-label').value.trim(),priority:document.getElementById('edit-priority').value});
+  toast('Watchlist entry updated','s'); closeEditModal(); renderWatchlist();
+}
+
+function confirmDel(id){
+  if(delConfirmId===id){
+    S.delWl(id); toast('Removed from watchlist','s'); delConfirmId=null; renderWatchlist();
+  } else {
+    delConfirmId=id;
+    const b=document.getElementById(`del-${id}`);
+    b.textContent='⚠ CONFIRM?'; b.style.background='rgba(255,51,85,.3)';
+    setTimeout(()=>{ delConfirmId=null; const bb=document.getElementById(`del-${id}`); if(bb){ bb.textContent='✕ REMOVE'; bb.style.background=''; } },3500);
+  }
+}
+
+// ── AIRPORTS ─────────────────────────────────────────
+const AC={};
+
+async function searchAirports(){
+  const q=document.getElementById('a-search').value.trim();
+  if(!q){ toast('Enter airport name or IATA code','w'); return; }
+  const c=document.getElementById('a-cards');
+  c.innerHTML=`<div class="loading" style="grid-column:1/-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2v10l6 4"/></svg>SEARCHING AIRPORTS...</div>`;
+  const d=await apiCall('airports',{search:q,limit:24});
+  if(!d){ c.innerHTML=''; return; }
+  const airports=d.data||[];
+  airports.forEach(a=>{ if(a.iata_code) AC[a.iata_code]=a; });
+  document.getElementById('a-count').textContent=airports.length;
+  document.getElementById('a-count-row').style.display=airports.length?'flex':'none';
+  renderAirportCards(airports,c);
+}
+
+function renderAirportCards(airports,c){
+  if(!airports.length){
+    c.innerHTML=`<div class="empty" style="grid-column:1/-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/></svg><h3>NO AIRPORTS FOUND</h3><p>Try a different search term</p></div>`;
+    return;
+  }
+  c.innerHTML=airports.map(a=>{
+    const pinned=S.isPinned(a.iata_code);
+    return `<div class="card">
+      <div class="card-hdr">
+        <div><div class="card-title">${a.iata_code||'—'}</div><div class="card-sub">${a.airport_name||'—'}</div></div>
+        <span class="badge ${pinned?'b-active':'b-sched'}">${pinned?'PINNED':a.icao_code||'—'}</span>
+      </div>
+      <div class="card-body">
+        <div class="cf"><span class="cf-lbl">COUNTRY</span><span class="cf-val">${a.country_name||'—'}</span></div>
+        <div class="cf"><span class="cf-lbl">TIMEZONE</span><span class="cf-val">${(a.timezone||'—').split('/').pop()}</span></div>
+        <div class="cf"><span class="cf-lbl">LAT</span><span class="cf-val">${a.latitude?parseFloat(a.latitude).toFixed(3):'—'}</span></div>
+        <div class="cf"><span class="cf-lbl">LNG</span><span class="cf-val">${a.longitude?parseFloat(a.longitude).toFixed(3):'—'}</span></div>
+      </div>
+      <div class="card-acts">
+        <button class="btn btn-sm ${pinned?'btn-d':'btn-w'}" onclick="togglePin('${a.iata_code}')">
+          ${pinned?'✕ UNPIN':'📍 PIN'}
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function togglePin(iata){
+  const a=AC[iata]; if(!a) return;
+  if(S.isPinned(iata)){ S.unpin(iata); toast(`${iata} unpinned`,'s'); }
+  else{ S.pin(a); toast(`${iata} pinned`,'s'); }
+  renderPinned();
+  // refresh cards in view
+  const c=document.getElementById('a-cards');
+  const airports=Object.values(AC).filter(x=>c.innerHTML.includes(`>${x.iata_code||'?'}<`));
+  // simple re-render of visible cards
+  const visible=Array.from(c.querySelectorAll('.card')).map((_,i)=>Object.values(AC)[i]).filter(Boolean);
+  if(visible.length) renderAirportCards(Object.values(AC),c);
+}
+
+function renderPinned(){
+  const pins=S.pins(), sec=document.getElementById('pinned-sec'), row=document.getElementById('pinned-row');
+  if(!pins.length){ sec.style.display='none'; return; }
+  sec.style.display='block';
+  row.innerHTML=pins.map(a=>`
+    <div class="chip">
+      <span>${a.iata_code}</span>
+      <span class="chip-name">${(a.airport_name||'').slice(0,16)}</span>
+      <span class="chip-rm" onclick="S.unpin('${a.iata_code}');renderPinned();toast('${a.iata_code} unpinned','s')">✕</span>
+    </div>
+  `).join('');
+}
+
+// ── AIRLINES ─────────────────────────────────────────
+const ALC={};
+
+async function searchAirlines(){
+  const q=document.getElementById('al-search').value.trim();
+  if(!q){ toast('Enter airline name or IATA code','w'); return; }
+  const c=document.getElementById('al-cards');
+  c.innerHTML=`<div class="loading" style="grid-column:1/-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2v10l6 4"/></svg>SEARCHING AIRLINES...</div>`;
+  const d=await apiCall('airlines',{search:q,limit:24});
+  if(!d){ c.innerHTML=''; return; }
+  const airlines=d.data||[];
+  airlines.forEach(a=>{ if(a.iata_code) ALC[a.iata_code]=a; });
+  document.getElementById('al-count').textContent=airlines.length;
+  document.getElementById('al-count-row').style.display=airlines.length?'flex':'none';
+  renderAirlineCards(airlines,c);
+}
+
+function renderAirlineCards(airlines,c){
+  if(!airlines.length){
+    c.innerHTML=`<div class="empty" style="grid-column:1/-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21 4 19 2c-2-2-4-2-5.5-.5L10 5 1.8 6.2C1.3 6.3 1 6.7 1 7.2L3 10H6l1 3H4l2 2 1 3 3-1V14l3-1 3 5.8c.1.5.5.8 1 .7l3.5-.8c.5-.1.7-.7.3-1.1z"/></svg><h3>NO AIRLINES FOUND</h3><p>Try a different search term</p></div>`;
+    return;
+  }
+  c.innerHTML=airlines.map(a=>{
+    const followed=S.isFollowed(a.iata_code);
+    const active=(a.status||'').toLowerCase()==='active';
+    return `<div class="card">
+      <div class="card-hdr">
+        <div><div class="card-title">${a.iata_code||a.icao_code||'—'}</div><div class="card-sub">${a.airline_name||'—'}</div></div>
+        <span class="badge ${active?'b-active':'b-canc'}">${(a.status||'UNKNOWN').toUpperCase()}</span>
+      </div>
+      <div class="card-body">
+        <div class="cf"><span class="cf-lbl">ICAO</span><span class="cf-val">${a.icao_code||'—'}</span></div>
+        <div class="cf"><span class="cf-lbl">COUNTRY</span><span class="cf-val">${a.country_name||'—'}</span></div>
+        <div class="cf"><span class="cf-lbl">FLEET</span><span class="cf-val">${a.fleet_size||'—'}</span></div>
+        <div class="cf"><span class="cf-lbl">CALLSIGN</span><span class="cf-val">${a.callsign||'—'}</span></div>
+      </div>
+      <div class="card-acts">
+        <button class="btn btn-sm ${followed?'btn-d':'btn-p'}" onclick="toggleFollow('${a.iata_code}')">
+          ${followed?'✕ UNFOLLOW':'+ FOLLOW'}
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleFollow(iata){
+  const a=ALC[iata]; if(!a) return;
+  if(S.isFollowed(iata)){ S.unfollow(iata); toast(`${a.airline_name||iata} unfollowed`,'s'); }
+  else{ S.follow(a); toast(`${a.airline_name||iata} followed`,'s'); }
+  renderFollowed();
+}
+
+function renderFollowed(){
+  const list=S.follows(), sec=document.getElementById('followed-sec'), row=document.getElementById('followed-row');
+  if(!list.length){ sec.style.display='none'; return; }
+  sec.style.display='block';
+  row.innerHTML=list.map(a=>`
+    <div class="chip cyan">
+      <span>${a.iata_code||'?'}</span>
+      <span class="chip-name">${(a.airline_name||'').slice(0,16)}</span>
+      <span class="chip-rm" onclick="S.unfollow('${a.iata_code}');renderFollowed();toast('Unfollowed','s')">✕</span>
+    </div>
+  `).join('');
+}
+
+// ── INIT ─────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded',()=>{
+  startClock();
+  updCounter(S.calls());
+  updWlBadge();
+  renderPinned();
+  renderFollowed();
+
+  // Enter key handlers
+  ['f-iata','f-dep','f-arr'].forEach(id=>document.getElementById(id).addEventListener('keydown',e=>e.key==='Enter'&&searchFlights()));
+  document.getElementById('a-search').addEventListener('keydown',e=>e.key==='Enter'&&searchAirports());
+  document.getElementById('al-search').addEventListener('keydown',e=>e.key==='Enter'&&searchAirlines());
+
+  // Close modal on overlay click
+  document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{ if(e.target===o){ o.classList.remove('open'); editId=null; } }));
+});
+</script>
+</body>
+</html>
